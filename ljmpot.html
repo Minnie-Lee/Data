@@ -123,7 +123,7 @@
     .chart-trend { position: relative; height: 340px; }
     .chart-cmp { position: relative; height: 540px; }
 
-    .row { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; align-items: start; }
+    .row { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
 
     .caption {
       margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
@@ -177,13 +177,18 @@
       background: #d03b3b; margin-right: 8px; vertical-align: 0.12em;
     }
 
+    .notes .intro { margin-top: 16px; font-size: 0.95rem; color: var(--ink-2); }
+    .notes-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .notes .intro + .notes-grid { margin-top: 4px; }
+    .note code { font-family: inherit; font-weight: 600; color: var(--ink); }
+
     /* ---------- Responsive ---------- */
     @media (max-width: 960px) {
       .row { grid-template-columns: 1fr; }
       .facts { grid-template-columns: repeat(2, 1fr); }
       .fact:nth-child(3) { padding-left: 0; border-left: 0; }
       .fact:nth-child(n+3) { border-top: 1px solid var(--rule); }
-      .notes-grid { grid-template-columns: 1fr; }
+      .notes-grid, .notes-grid.cols-4 { grid-template-columns: 1fr; }
       .note, .note + .note { padding: 18px 0 6px; border-left: 0; }
       .note + .note { border-top: 1px solid var(--rule); }
     }
@@ -269,19 +274,6 @@
     </section>
 
     <div class="row">
-      <!-- Comparison -->
-      <section class="panel" aria-labelledby="cmpTitle">
-        <div class="panel-head">
-          <div>
-            <h2 id="cmpTitle" data-i18n="cmp_title">과거 6개월 평균가와 6월 예측가</h2>
-            <p data-i18n="cmp_desc">16개 구·군, 예측가가 높은 순</p>
-          </div>
-          <span class="unit-tag"></span>
-        </div>
-        <div class="chart-cmp"><canvas id="comparisonChart" role="img" aria-labelledby="cmpTitle"></canvas></div>
-        <p class="caption" id="cmpCaption"></p>
-      </section>
-
       <!-- Simulator -->
       <section class="panel" aria-labelledby="simTitle">
         <div class="panel-head">
@@ -318,6 +310,19 @@
           <div class="basis" id="resultBasis"></div>
         </div>
       </section>
+      <!-- Comparison -->
+      <section class="panel" aria-labelledby="cmpTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="cmpTitle" data-i18n="cmp_title">과거 6개월 평균가와 6월 예측가</h2>
+            <p data-i18n="cmp_desc">16개 구·군, 예측가가 높은 순</p>
+          </div>
+          <span class="unit-tag"></span>
+        </div>
+        <div class="chart-cmp"><canvas id="comparisonChart" role="img" aria-labelledby="cmpTitle"></canvas></div>
+        <p class="caption" id="cmpCaption"></p>
+      </section>
+
     </div>
 
     <!-- Notes -->
@@ -335,6 +340,30 @@
         <article class="note flag">
           <h3 data-i18n="insight_3_title">데이터 편향과 정량 분석의 한계 발견</h3>
           <p data-i18n="insight_3_desc">해운대구의 6월 예측치 하락 원인이 '노후 구축 아파트 위주의 단기 거래 쏠림'임을 데이터로 입증하며, 부동산 프리미엄 가치 배제라는 ML의 한계를 도출했습니다.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Build notes -->
+    <section class="notes" aria-labelledby="buildTitle">
+      <h2 id="buildTitle" data-i18n="build_title">구현 포인트</h2>
+      <p class="intro" data-i18n="build_intro">6월 수업에서 발표한 데이터 분석 결과를 웹사이트로 재구성했습니다.</p>
+      <div class="notes-grid cols-4">
+        <article class="note">
+          <h3 data-i18n="build_1_title">한국어/일본어 전환</h3>
+          <p data-i18n="build_1_desc">텍스트뿐 아니라 차트 범례, 지역명, 금액 단위까지 언어에 맞춰 바뀝니다. 일본어에서는 원화를 엔화로 환산해 표시합니다.</p>
+        </article>
+        <article class="note">
+          <h3 data-i18n="build_2_title">실시간 환율 연동</h3>
+          <p data-i18n="build_2_desc">페이지를 열 때 환율 API에서 최신 환율을 받아옵니다. 1순위 API가 실패하면 2순위 API, 둘 다 실패하면 기본 환율로 표시합니다.</p>
+        </article>
+        <article class="note">
+          <h3 data-i18n="build_3_title">반응형·다크 모드</h3>
+          <p data-i18n="build_3_desc">모바일 화면에 맞게 배치가 바뀌고, 다크 모드에서는 차트 색상도 따로 지정했습니다.</p>
+        </article>
+        <article class="note">
+          <h3 data-i18n="build_4_title">사용 기술</h3>
+          <p data-i18n="build_4_desc">HTML, CSS, JavaScript(프레임워크 없이), Chart.js. 모델 학습에는 scikit-learn(RandomForest, GridSearchCV)을 사용했습니다.</p>
         </article>
       </div>
     </section>
@@ -378,6 +407,28 @@
       insight_2_desc: { ko: "16개 구를 One-Hot 인코딩하여 단일 앙상블(RandomForest)로 구축하고 GridSearchCV로 파라미터를 자동 탐색했습니다.", ja: "16の区をOne-Hotエンコーディングして単一アンサンブル(RandomForest)を構築し、GridSearchCVでパラメータを自動探索しました。" },
       insight_3_title: { ko: "데이터 편향과 정량 분석의 한계 발견", ja: "データ偏りと定量分析の限界発見" },
       insight_3_desc: { ko: "해운대구의 6월 예측치 하락 원인이 '노후 구축 아파트 위주의 단기 거래 쏠림'임을 데이터로 입증하며, 부동산 프리미엄 가치 배제라는 ML의 한계를 도출했습니다.", ja: "海雲台区の6月予測値下落の原因が「老朽化マンション中心の短期取引集中」であることをデータで証明し、プレミアム価値排除というMLの限界を導き出しました。" },
+      build_title: { ko: "구현 포인트", ja: "実装のポイント" },
+      build_intro: { ko: "6월 수업에서 발표한 데이터 분석 결과를 웹사이트로 재구성했습니다.", ja: "6月の授業で発表したデータ分析の結果を、Webサイトとして再構成しました。" },
+      build_1_title: { ko: "한국어/일본어 전환", ja: "韓国語・日本語の切り替え" },
+      build_1_desc: {
+        ko: "텍스트뿐 아니라 차트 범례, 지역명, 금액 단위까지 언어에 맞춰 바뀝니다. 일본어에서는 원화를 엔화로 환산해 표시합니다.",
+        ja: "テキストだけでなく、グラフの凡例、地域名、金額の単位まで言語に合わせて切り替わります。日本語では韓国ウォンを円に換算して表示します。"
+      },
+      build_2_title: { ko: "실시간 환율 연동", ja: "為替レートの自動取得" },
+      build_2_desc: {
+        ko: "페이지를 열 때 환율 API에서 최신 환율을 받아옵니다. 1순위 API가 실패하면 2순위 API, 둘 다 실패하면 기본 환율로 표시합니다.",
+        ja: "ページを開くと為替APIから最新レートを取得します。1つ目のAPIが失敗した場合は2つ目のAPIを、両方とも失敗した場合は基準レートを使って表示します。"
+      },
+      build_3_title: { ko: "반응형·다크 모드", ja: "レスポンシブ・ダークモード" },
+      build_3_desc: {
+        ko: "모바일 화면에 맞게 배치가 바뀌고, 다크 모드에서는 차트 색상도 따로 지정했습니다.",
+        ja: "モバイル画面に合わせてレイアウトが変わり、ダークモードではグラフの配色も個別に設定しています。"
+      },
+      build_4_title: { ko: "사용 기술", ja: "使用技術" },
+      build_4_desc: {
+        ko: "HTML, CSS, JavaScript(프레임워크 없이), Chart.js. 모델 학습에는 scikit-learn(RandomForest, GridSearchCV)을 사용했습니다.",
+        ja: "HTML、CSS、JavaScript（フレームワーク不使用）、Chart.js。モデルの学習にはscikit-learn（RandomForest、GridSearchCV）を使用しました。"
+      },
       theme_dark: { ko: "다크 모드", ja: "ダークモード" },
       theme_light: { ko: "라이트 모드", ja: "ライトモード" }
     };
