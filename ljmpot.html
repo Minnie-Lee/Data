@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>부산 아파트 실거래가 분석 및 예측</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ---------- Tokens ---------- */
+    :root {
+      --bg: #f3f5f7;
+      --surface: #ffffff;
+      --ink: #15212c;
+      --ink-2: #4b5967;
+      --ink-3: #727f8c;
+      --rule: #dde3e8;
+      --rule-strong: #c7d0d8;
+      --accent: #1e4e79;          /* 부산항 네이비 */
+      --accent-ink: #ffffff;
+      --accent-soft: #e8eef4;
+      --series-actual: #a3adb7;
+      --grid: #edf0f3;
+      --focus: #2a78d6;
+      --font-ko: 'IBM Plex Sans KR', 'IBM Plex Sans JP', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      --font-ja: 'IBM Plex Sans JP', 'IBM Plex Sans KR', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+      color-scheme: light;
+    }
+    :root[data-theme="dark"] {
+      --bg: #0f151b;
+      --surface: #161e26;
+      --ink: #eef2f5;
+      --ink-2: #aab6c1;
+      --ink-3: #8592a0;
+      --rule: #26313c;
+      --rule-strong: #34414e;
+      --accent: #7fb2e0;
+      --accent-ink: #0f151b;
+      --accent-soft: #1d2a36;
+      --series-actual: #56626e;
+      --grid: #1f2933;
+      --focus: #7fb2e0;
+      color-scheme: dark;
+    }
+
+    /* ---------- Base ---------- */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-ko);
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "tnum" 1;
+      word-break: keep-all; overflow-wrap: anywhere;
+    }
+    html[lang="ja"] body { word-break: normal; line-break: strict; }
+    html[lang="ja"] body { font-family: var(--font-ja); }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+    /* ---------- Top bar ---------- */
+    .topbar { border-bottom: 1px solid var(--rule); background: var(--surface); }
+    .topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 60px; }
+    .brand { font-size: 0.95rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 6px; overflow: hidden; }
+    .seg button {
+      font: inherit; font-size: 0.85rem; font-weight: 500; color: var(--ink-2);
+      background: transparent; border: 0; padding: 6px 12px; cursor: pointer;
+    }
+    .seg button + button { border-left: 1px solid var(--rule-strong); }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+    .btn-ghost {
+      font: inherit; font-size: 0.85rem; font-weight: 500; color: var(--ink-2);
+      background: transparent; border: 1px solid var(--rule-strong); border-radius: 6px;
+      padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-ghost:hover, .seg button:not([aria-pressed="true"]):hover { color: var(--ink); background: var(--accent-soft); }
+    .btn-ghost svg { width: 16px; height: 16px; }
+
+    /* ---------- Hero ---------- */
+    .hero { padding: 56px 0 40px; }
+    .hero h1 {
+      font-size: clamp(1.75rem, 3.4vw, 2.5rem); font-weight: 700; line-height: 1.3;
+      letter-spacing: -0.02em; max-width: 22em; text-wrap: balance;
+    }
+    html[lang="ja"] .hero h1 { letter-spacing: 0; }
+    .hero .lead { margin-top: 16px; max-width: 46em; color: var(--ink-2); font-size: 1.05rem; }
+
+    .facts {
+      margin-top: 36px; display: grid; grid-template-columns: repeat(4, 1fr);
+      border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule);
+    }
+    .fact { padding: 18px 20px 20px; }
+    .fact:first-child { padding-left: 0; }
+    .fact + .fact { border-left: 1px solid var(--rule); }
+    .fact dt { font-size: 0.85rem; color: var(--ink-3); font-weight: 500; }
+    .fact dd.val { font-size: 1.4rem; font-weight: 600; margin-top: 4px; line-height: 1.35; }
+    .fact dd.sub { font-size: 0.85rem; color: var(--ink-2); margin-top: 2px; }
+    .fx-note { margin-top: 12px; font-size: 0.8rem; color: var(--ink-3); }
+    .fx-note a { color: inherit; }
+
+    /* ---------- Panels ---------- */
+    main { padding-bottom: 72px; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+      padding: 28px 28px 24px;
+    }
+    .panel + .panel, .row + .panel, .panel + .row, .row + .notes { margin-top: 24px; }
+    .row > .panel { margin-top: 0; }
+    .panel-head { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+    .panel-head .unit-tag { font-size: 0.8rem; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; }
+    .panel-head h2 { font-size: 1.15rem; font-weight: 600; line-height: 1.4; }
+    .panel-head p { font-size: 0.9rem; color: var(--ink-2); margin-top: 4px; }
+
+    .chart-trend { position: relative; height: 340px; }
+    .chart-cmp { position: relative; height: 540px; }
+
+    .row { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; align-items: start; }
+
+    .caption {
+      margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
+      font-size: 0.9rem; color: var(--ink-2);
+    }
+    .caption strong { color: var(--ink); font-weight: 600; }
+
+    /* Data table (trend chart fallback) */
+    details.data { margin-top: 18px; border-top: 1px solid var(--rule); padding-top: 12px; }
+    details.data summary { cursor: pointer; font-size: 0.88rem; font-weight: 500; color: var(--accent); width: fit-content; }
+    .table-scroll { overflow-x: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { padding: 8px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+    th:first-child, td:first-child { text-align: left; }
+    thead th { font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--rule-strong); }
+    thead th .unit { font-weight: 400; color: var(--ink-3); }
+    .swatch { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+
+    /* ---------- Simulator ---------- */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .field label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; }
+    .field select, .field input {
+      width: 100%; font: inherit; font-size: 1rem; color: var(--ink);
+      background: var(--surface); border: 1px solid var(--rule-strong); border-radius: 6px;
+      padding: 10px 12px; height: 44px;
+    }
+    .field select:focus, .field input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+    .btn-primary {
+      margin-top: 20px; width: 100%; height: 46px; font: inherit; font-size: 1rem; font-weight: 600;
+      color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 6px; cursor: pointer;
+    }
+    .btn-primary:hover { filter: brightness(1.08); }
+
+    .result { margin-top: 20px; border-top: 2px solid var(--ink); padding-top: 16px; }
+    .result[hidden] { display: none; }
+    .result .label { font-size: 0.85rem; color: var(--ink-3); font-weight: 500; }
+    .result .price { font-size: clamp(1.9rem, 3.6vw, 2.4rem); font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; margin-top: 4px; }
+    .result .basis { font-size: 0.85rem; color: var(--ink-2); margin-top: 8px; }
+
+    /* ---------- Notes ---------- */
+    .notes { margin-top: 48px; }
+    .notes > h2 { font-size: 1.15rem; font-weight: 600; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
+    .notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .note { padding: 20px 24px 8px 0; }
+    .note + .note { padding-left: 24px; border-left: 1px solid var(--rule); }
+    .note h3 { font-size: 1rem; font-weight: 600; line-height: 1.45; }
+    .note p { font-size: 0.92rem; color: var(--ink-2); margin-top: 8px; }
+    .note.flag h3::before {
+      content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: #d03b3b; margin-right: 8px; vertical-align: 0.12em;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 960px) {
+      .row { grid-template-columns: 1fr; }
+      .facts { grid-template-columns: repeat(2, 1fr); }
+      .fact:nth-child(3) { padding-left: 0; border-left: 0; }
+      .fact:nth-child(n+3) { border-top: 1px solid var(--rule); }
+      .notes-grid { grid-template-columns: 1fr; }
+      .note, .note + .note { padding: 18px 0 6px; border-left: 0; }
+      .note + .note { border-top: 1px solid var(--rule); }
+    }
+    @media (max-width: 560px) {
+      .wrap { padding: 0 16px; }
+      .brand { font-size: 0.85rem; }
+      .theme-text { display: none; }
+      .hero { padding: 36px 0 28px; }
+      .panel { padding: 20px 16px 18px; }
+      .facts { grid-template-columns: 1fr; }
+      .fact, .fact:first-child, .fact + .fact { padding: 14px 0; border-left: 0; }
+      .fact + .fact { border-top: 1px solid var(--rule); }
+      .chart-trend { height: 300px; }
+      .chart-cmp { height: 600px; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wrap">
+      <div class="brand" data-i18n="brand">부산 아파트 실거래가 예측</div>
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Language">
+          <button type="button" id="btnKo" aria-pressed="true" onclick="setLanguage('ko')">한국어</button>
+          <button type="button" id="btnJa" aria-pressed="false" onclick="setLanguage('ja')">日本語</button>
+        </div>
+        <button type="button" class="btn-ghost" id="themeBtn" onclick="toggleTheme()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path id="themeIcon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span class="theme-text" id="themeText">다크 모드</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Hero -->
+    <section class="hero">
+      <h1 data-i18n="hero_title">부산 아파트 실거래가 분석과 2026년 6월 가격 예측</h1>
+      <p class="lead" data-i18n="hero_lead">부산 16개 구·군의 2025년 12월~2026년 5월 아파트 실거래 데이터로 RandomForest 회귀 모델을 학습해 2026년 6월 거래가를 예측했습니다.</p>
+
+      <dl class="facts">
+        <div class="fact">
+          <dt data-i18n="f1_label">분석 기간</dt>
+          <dd class="val">2025.12 – 2026.05</dd>
+          <dd class="sub" data-i18n="f1_sub">6개월</dd>
+        </div>
+        <div class="fact">
+          <dt data-i18n="f2_label">분석 지역</dt>
+          <dd class="val" data-i18n="f2_val">16개 구·군</dd>
+          <dd class="sub" data-i18n="f2_sub">부산광역시 전체</dd>
+        </div>
+        <div class="fact">
+          <dt data-i18n="f3_label">평균 거래가 1위</dt>
+          <dd class="val" data-i18n="f3_val">수영구</dd>
+          <dd class="sub" id="f3Sub"></dd>
+        </div>
+        <div class="fact">
+          <dt data-i18n="f4_label">예측 모델</dt>
+          <dd class="val">RandomForest</dd>
+          <dd class="sub" data-i18n="f4_sub">GridSearchCV 하이퍼파라미터 탐색</dd>
+        </div>
+      </dl>
+      <p class="fx-note" id="fxNote"></p>
+    </section>
+
+    <!-- Trend -->
+    <section class="panel" aria-labelledby="trendTitle">
+      <div class="panel-head">
+        <div>
+          <h2 id="trendTitle" data-i18n="trend_title">주요 6개 구 월별 평균 실거래가</h2>
+          <p data-i18n="trend_desc">평균 거래가 상위권 구와 하위권 구를 함께 비교했습니다.</p>
+        </div>
+        <span class="unit-tag"></span>
+      </div>
+      <div class="chart-trend"><canvas id="monthlyTrendChart" role="img" aria-labelledby="trendTitle"></canvas></div>
+      <details class="data">
+        <summary data-i18n="table_toggle">월별 데이터 표 보기</summary>
+        <div class="table-scroll"><table id="trendTable"></table></div>
+      </details>
+    </section>
+
+    <div class="row">
+      <!-- Comparison -->
+      <section class="panel" aria-labelledby="cmpTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="cmpTitle" data-i18n="cmp_title">과거 6개월 평균가와 6월 예측가</h2>
+            <p data-i18n="cmp_desc">16개 구·군, 예측가가 높은 순</p>
+          </div>
+          <span class="unit-tag"></span>
+        </div>
+        <div class="chart-cmp"><canvas id="comparisonChart" role="img" aria-labelledby="cmpTitle"></canvas></div>
+        <p class="caption" id="cmpCaption"></p>
+      </section>
+
+      <!-- Simulator -->
+      <section class="panel" aria-labelledby="simTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="simTitle" data-i18n="sim_title">6월 예상 거래가 계산</h2>
+            <p data-i18n="sim_desc">선택한 구의 6월 예측가를 기준으로 전용면적·건축년도·층수 차이를 보정한 추정치입니다.</p>
+          </div>
+        </div>
+        <form id="predictForm">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="guSelect" data-i18n="sim_lbl_gu">지역</label>
+              <select id="guSelect"></select>
+            </div>
+            <div class="field">
+              <label for="areaInput" data-i18n="sim_lbl_area">전용면적 (㎡)</label>
+              <input type="number" id="areaInput" value="84" min="10" max="300" required />
+            </div>
+            <div class="field">
+              <label for="ageInput" data-i18n="sim_lbl_age">건축년도</label>
+              <input type="number" id="ageInput" value="2018" min="1970" max="2026" required />
+            </div>
+            <div class="field full">
+              <label for="floorInput" data-i18n="sim_lbl_floor">층</label>
+              <input type="number" id="floorInput" value="15" min="1" max="80" required />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" data-i18n="sim_btn">예상 거래가 계산</button>
+        </form>
+
+        <div class="result" id="resultContainer" hidden aria-live="polite">
+          <div class="label" data-i18n="sim_res_lbl">2026년 6월 예상 거래가</div>
+          <div class="price" id="predictedPriceText"></div>
+          <div class="basis" id="resultBasis"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Notes -->
+    <section class="notes" aria-labelledby="notesTitle">
+      <h2 id="notesTitle" data-i18n="insight_title">분석 노트</h2>
+      <div class="notes-grid">
+        <article class="note">
+          <h3 data-i18n="insight_1_title">시계열 파생 피처 도입</h3>
+          <p data-i18n="insight_1_desc">단순 분리 모델의 한계를 넘기 위해 계약년월 인덱스 및 전월 대비 거래량 증감률을 파생 변수로 생성해 학습시켰습니다.</p>
+        </article>
+        <article class="note">
+          <h3 data-i18n="insight_2_title">통합 앙상블 모델 최적화</h3>
+          <p data-i18n="insight_2_desc">16개 구를 One-Hot 인코딩하여 단일 앙상블(RandomForest)로 구축하고 GridSearchCV로 파라미터를 자동 탐색했습니다.</p>
+        </article>
+        <article class="note flag">
+          <h3 data-i18n="insight_3_title">데이터 편향과 정량 분석의 한계 발견</h3>
+          <p data-i18n="insight_3_desc">해운대구의 6월 예측치 하락 원인이 '노후 구축 아파트 위주의 단기 거래 쏠림'임을 데이터로 입증하며, 부동산 프리미엄 가치 배제라는 ML의 한계를 도출했습니다.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /* ===================== i18n ===================== */
+    const i18n = {
+      page_title: { ko: "부산 아파트 실거래가 분석 및 예측", ja: "釜山マンション実取引価格の分析と予測" },
+      brand: { ko: "부산 아파트 실거래가 예측", ja: "釜山マンション実取引価格予測" },
+      hero_title: { ko: "부산 아파트 실거래가 분석과 2026년 6월 가격 예측", ja: "釜山マンション実取引価格の分析と2026年6月の価格予測" },
+      hero_lead: {
+        ko: "부산 16개 구·군의 2025년 12월~2026년 5월 아파트 실거래 데이터로 RandomForest 회귀 모델을 학습해 2026년 6월 거래가를 예측했습니다.",
+        ja: "釜山16区・郡における2025年12月〜2026年5月のマンション実取引データでRandomForest回帰モデルを学習し、2026年6月の取引価格を予測しました。"
+      },
+      f1_label: { ko: "분석 기간", ja: "分析期間" }, f1_sub: { ko: "6개월", ja: "6ヶ月" },
+      f2_label: { ko: "분석 지역", ja: "対象地域" }, f2_val: { ko: "16개 구·군", ja: "16区・郡" }, f2_sub: { ko: "부산광역시 전체", ja: "釜山広域市全域" },
+      f3_label: { ko: "평균 거래가 1위", ja: "平均取引価格1位" }, f3_val: { ko: "수영구", ja: "水営区" },
+      f4_label: { ko: "예측 모델", ja: "予測モデル" }, f4_sub: { ko: "GridSearchCV 하이퍼파라미터 탐색", ja: "GridSearchCVでハイパーパラメータ探索" },
+      trend_title: { ko: "주요 6개 구 월별 평균 실거래가", ja: "主要6区の月別平均実取引価格" },
+      trend_desc: { ko: "평균 거래가 상위권 구와 하위권 구를 함께 비교했습니다.", ja: "平均取引価格の上位区と下位区を並べて比較しています。" },
+      table_toggle: { ko: "월별 데이터 표 보기", ja: "月別データを表で見る" },
+      table_month: { ko: "월", ja: "月" },
+      cmp_title: { ko: "과거 6개월 평균가와 6월 예측가", ja: "過去6ヶ月平均価格と6月予測価格" },
+      cmp_desc: { ko: "16개 구·군, 예측가가 높은 순", ja: "16区・郡、予測価格の高い順" },
+      ds_actual: { ko: "과거 6개월 평균가", ja: "過去6ヶ月平均価格" },
+      ds_pred: { ko: "2026년 6월 예측가", ja: "2026年6月予測価格" },
+      sim_title: { ko: "6월 예상 거래가 계산", ja: "6月の予想取引価格を計算" },
+      sim_desc: {
+        ko: "선택한 구의 6월 예측가를 기준으로 전용면적·건축년도·층수 차이를 보정한 추정치입니다.",
+        ja: "選択した区の6月予測価格を基準に、専有面積・建築年・階数の差を補正した推定値です。"
+      },
+      sim_lbl_gu: { ko: "지역", ja: "地域" }, sim_lbl_area: { ko: "전용면적 (㎡)", ja: "専有面積 (㎡)" },
+      sim_lbl_age: { ko: "건축년도", ja: "建築年" }, sim_lbl_floor: { ko: "층", ja: "階数" },
+      sim_btn: { ko: "예상 거래가 계산", ja: "予想取引価格を計算" },
+      sim_res_lbl: { ko: "2026년 6월 예상 거래가", ja: "2026年6月の予想取引価格" },
+      insight_title: { ko: "분석 노트", ja: "分析ノート" },
+      insight_1_title: { ko: "시계열 파생 피처 도입", ja: "時系列派生特徴量の導入" },
+      insight_1_desc: { ko: "단순 분리 모델의 한계를 넘기 위해 계약년월 인덱스 및 전월 대비 거래량 증감률을 파생 변수로 생성해 학습시켰습니다.", ja: "単純分離モデルの限界を超えるため、契約年月のインデックス及び前月比取引量増減率を派生変数として生成し学習させました。" },
+      insight_2_title: { ko: "통합 앙상블 모델 최적화", ja: "統合アンサンブルモデルの最適化" },
+      insight_2_desc: { ko: "16개 구를 One-Hot 인코딩하여 단일 앙상블(RandomForest)로 구축하고 GridSearchCV로 파라미터를 자동 탐색했습니다.", ja: "16の区をOne-Hotエンコーディングして単一アンサンブル(RandomForest)を構築し、GridSearchCVでパラメータを自動探索しました。" },
+      insight_3_title: { ko: "데이터 편향과 정량 분석의 한계 발견", ja: "データ偏りと定量分析の限界発見" },
+      insight_3_desc: { ko: "해운대구의 6월 예측치 하락 원인이 '노후 구축 아파트 위주의 단기 거래 쏠림'임을 데이터로 입증하며, 부동산 프리미엄 가치 배제라는 ML의 한계를 도출했습니다.", ja: "海雲台区の6月予測値下落の原因が「老朽化マンション中心の短期取引集中」であることをデータで証明し、プレミアム価値排除というMLの限界を導き出しました。" },
+      theme_dark: { ko: "다크 모드", ja: "ダークモード" },
+      theme_light: { ko: "라이트 모드", ja: "ライトモード" }
+    };
+    const guDict = {
+      '수영구': '水営区', '해운대구': '海雲台区', '남구': '南区', '동래구': '東莱区', '사하구': '沙下区', '중구': '中区',
+      '강서구': '江西区', '금정구': '金井区', '부산진구': '釜山鎮区', '연제구': '蓮堤区', '동구': '東区', '서구': '西区',
+      '기장군': '機張郡', '북구': '北区', '영도구': '影島区', '사상구': '沙上区'
+    };
+    const guName = (gu) => currentLang === 'ko' ? gu : guDict[gu];
+    let currentLang = 'ko';
+
+    /* ===================== Data (단위: 만원) ===================== */
+    const monthLabels = ['2025.12', '2026.01', '2026.02', '2026.03', '2026.04', '2026.05'];
+    const topGu = {
+      '수영구': [70659,72382,67311,63816,68210,68064], '해운대구': [62960,59436,63165,61766,55414,60951],
+      '남구': [55958,51314,53289,51358,50888,53788], '동래구': [51963,51569,49301,48745,48520,52839],
+      '사하구': [22039,24137,22759,22060,23536,23601], '중구': [20914,14720,13825,21467,15167,15450]
+    };
+    const guSummaryData = [
+      { gu: '수영구', actual: 68407, pred: 46347 }, { gu: '동래구', actual: 50489, pred: 45084 }, { gu: '강서구', actual: 38565, pred: 37067 },
+      { gu: '금정구', actual: 39994, pred: 36814 }, { gu: '부산진구', actual: 36279, pred: 32406 }, { gu: '연제구', actual: 51926, pred: 31976 },
+      { gu: '남구', actual: 52766, pred: 29694 }, { gu: '동구', actual: 37621, pred: 29078 }, { gu: '서구', actual: 42205, pred: 27278 },
+      { gu: '기장군', actual: 31241, pred: 24865 }, { gu: '북구', actual: 32662, pred: 24438 }, { gu: '영도구', actual: 23092, pred: 23308 },
+      { gu: '해운대구', actual: 60615, pred: 23106 }, { gu: '사상구', actual: 23636, pred: 21600 }, { gu: '중구', actual: 16924, pred: 20648 },
+      { gu: '사하구', actual: 23022, pred: 20115 }
+    ];
+
+    /* ===================== Currency (KRW ↔ JPY) ===================== */
+    // 원본 데이터 단위: 만원(KRW). 일본어 모드에서는 엔화(万円)로 환산해 표시
+    // 페이지 로드 시 환율 API에서 최신 환율을 받아오고, 실패하면 아래 기본값을 사용
+    const fx = {
+      krwPer100Jpy: 851.06,           // 기본값: 100円 = 851.06ウォン
+      date: '2026-10-06',             // 기본값 기준일
+      source: 'fallback'              // 'ecb' | 'erapi' | 'fallback'
+    };
+    const toManYen = (manWon) => manWon * 100 / fx.krwPer100Jpy;   // 만원 → 万円
+    const localize = (manWon) => currentLang === 'ko' ? manWon : Math.round(toManYen(manWon));
+    const unitLabel = () => currentLang === 'ko' ? '만원' : '万円';
+
+    function formatPrice(price, lang) {
+      const eok = Math.floor(price / 10000);
+      const man = Math.round(price % 10000);
+      if (lang === 'ko') {
+        if (eok === 0) return `${price.toLocaleString()}만원`;
+        return man > 0 ? `${eok}억 ${man.toLocaleString()}만원` : `${eok}억원`;
+      }
+      // 일본어: 만원 → 万円 환산 후 표기 (환산값이므로 '約' 표기)
+      const yen = Math.round(toManYen(price));
+      const yEok = Math.floor(yen / 10000), yMan = yen % 10000;
+      if (yEok === 0) return `約${yen.toLocaleString()}万円`;
+      return yMan > 0 ? `約${yEok}億${yMan.toLocaleString()}万円` : `約${yEok}億円`;
+    }
+
+    function renderFxNote() {
+      const el = document.getElementById('fxNote');
+      if (currentLang === 'ko') { el.textContent = '※ 금액 단위: 원(KRW)'; return; }
+      const [y, m, d] = fx.date.split('-').map(Number);
+      const srcJa = { ecb: '欧州中央銀行(ECB)公表レート', erapi: 'ExchangeRate-API', fallback: '参考レート' }[fx.source];
+      el.textContent = `※ 金額は韓国ウォンを円に換算した参考値です（100円 ＝ ${fx.krwPer100Jpy.toFixed(1)}ウォン、${y}年${m}月${d}日・${srcJa}）`;
+      if (fx.source === 'erapi') {   // ExchangeRate-API 무료 사용 시 출처 표기
+        const a = document.createElement('a');
+        a.href = 'https://www.exchangerate-api.com'; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = ' Rates By Exchange Rate API';
+        el.appendChild(a);
+      }
+    }
+
+    async function fetchJson(url, ms = 5000) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      try { const r = await fetch(url, { signal: ctrl.signal }); if (!r.ok) throw new Error(r.status); return await r.json(); }
+      finally { clearTimeout(t); }
+    }
+
+    async function loadLiveRate() {
+      try {   // 1순위: Frankfurter (유럽중앙은행 공시 환율, 키 불필요)
+        const j = await fetchJson('https://api.frankfurter.dev/v1/latest?base=JPY&symbols=KRW');
+        const rate = j?.rates?.KRW;
+        if (rate > 0) { Object.assign(fx, { krwPer100Jpy: rate * 100, date: j.date, source: 'ecb' }); return renderMoney(); }
+      } catch (e) { /* 다음 소스로 */ }
+      try {   // 2순위: ExchangeRate-API (일 1회 갱신, 키 불필요)
+        const j = await fetchJson('https://open.er-api.com/v6/latest/JPY');
+        const rate = j?.rates?.KRW;
+        if (j?.result === 'success' && rate > 0) {
+          const dt = new Date(j.time_last_update_unix * 1000);
+          const date = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+          Object.assign(fx, { krwPer100Jpy: rate * 100, date, source: 'erapi' }); return renderMoney();
+        }
+      } catch (e) { /* 기본값 유지 */ }
+    }
+
+    /* ===================== Chart theme ===================== */
+    const SERIES = {
+      light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'],
+      dark:  ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300']
+    };
+    const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const isDark = () => document.documentElement.dataset.theme === 'dark';
+    const fontFamily = () => cssVar(currentLang === 'ko' ? '--font-ko' : '--font-ja');
+
+    function tooltipStyle() {
+      return {
+        backgroundColor: cssVar('--surface'), borderColor: cssVar('--rule-strong'), borderWidth: 1,
+        titleColor: cssVar('--ink'), bodyColor: cssVar('--ink-2'), padding: 12, cornerRadius: 6,
+        boxPadding: 4, usePointStyle: true, titleFont: { weight: '600' }
+      };
+    }
+
+    Chart.defaults.font.size = 12;
+
+    /* ===================== Trend chart ===================== */
+    const trendChart = new Chart(document.getElementById('monthlyTrendChart'), {
+      type: 'line',
+      data: {
+        labels: monthLabels,
+        datasets: Object.keys(topGu).map((gu, i) => ({
+          key: gu, label: gu, krw: topGu[gu], data: topGu[gu],
+          borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, pointHitRadius: 12,
+          pointHoverBorderWidth: 2, tension: 0.25, colorIndex: i
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 4 } },
+        plugins: {
+          legend: { position: 'top', align: 'start', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 18, padding: 16 } },
+          tooltip: {
+            itemSort: (a, b) => b.raw - a.raw,
+            callbacks: { label: (c) => ` ${c.dataset.label}  ${c.raw.toLocaleString()} ${unitLabel()}` }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, border: { display: false } },
+          y: { border: { display: false }, ticks: { callback: (v) => v.toLocaleString(), maxTicksLimit: 6 } }
+        }
+      }
+    });
+
+    /* ===================== Comparison chart ===================== */
+    const compChart = new Chart(document.getElementById('comparisonChart'), {
+      type: 'bar',
+      data: {
+        labels: guSummaryData.map(d => d.gu),
+        datasets: [
+          { key: 'actual', krw: guSummaryData.map(d => d.actual), data: guSummaryData.map(d => d.actual) },
+          { key: 'pred', krw: guSummaryData.map(d => d.pred), data: guSummaryData.map(d => d.pred) }
+        ].map(ds => ({ ...ds, borderRadius: 3, borderSkipped: 'start', barPercentage: 0.82, categoryPercentage: 0.72 }))
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', axis: 'y', intersect: false },
+        plugins: {
+          legend: { position: 'top', align: 'start', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 12, padding: 16 } },
+          tooltip: {
+            callbacks: {
+              label: (c) => ` ${c.dataset.label}  ${c.raw.toLocaleString()} ${unitLabel()}`,
+              afterBody: (items) => {
+                const d = guSummaryData[items[0].dataIndex];
+                const pct = Math.round((d.pred - d.actual) / d.actual * 100);
+                return currentLang === 'ko' ? `  예측가 / 평균가  ${pct > 0 ? '+' : ''}${pct}%` : `  予測価格 / 平均価格  ${pct > 0 ? '+' : ''}${pct}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { position: 'top', grace: '6%', border: { display: false }, ticks: { callback: (v) => v.toLocaleString(), maxTicksLimit: 6 } },
+          y: { grid: { display: false }, border: { display: false } }
+        }
+      }
+    });
+
+    function applyChartTheme() {
+      const dark = isDark();
+      const ink2 = cssVar('--ink-2'), ink = cssVar('--ink'), grid = cssVar('--grid');
+      Chart.defaults.color = ink2;
+      Chart.defaults.font.family = fontFamily();
+      const surface = cssVar('--surface');
+
+      trendChart.data.datasets.forEach(ds => {
+        const c = SERIES[dark ? 'dark' : 'light'][ds.colorIndex];
+        Object.assign(ds, { borderColor: c, backgroundColor: c, pointHoverBackgroundColor: c, pointHoverBorderColor: surface });
+      });
+      compChart.data.datasets[0].backgroundColor = cssVar('--series-actual');
+      compChart.data.datasets[1].backgroundColor = SERIES[dark ? 'dark' : 'light'][0];
+
+      [trendChart, compChart].forEach(ch => {
+        Object.assign(ch.options.plugins.tooltip, tooltipStyle());
+        ch.options.plugins.legend.labels.color = ink;
+      });
+      trendChart.options.scales.y.grid = { color: grid };
+      trendChart.options.scales.x.ticks = { color: ink2 };
+      trendChart.options.scales.y.ticks.color = ink2;
+      compChart.options.scales.x.grid = { color: grid };
+      compChart.options.scales.x.ticks.color = ink2;
+      compChart.options.scales.y.ticks = { color: ink2 };
+      trendChart.update(); compChart.update();
+    }
+
+    /* ===================== Trend data table ===================== */
+    function renderTable() {
+      const table = document.getElementById('trendTable');
+      const colors = SERIES[isDark() ? 'dark' : 'light'];
+      const gus = Object.keys(topGu);
+      let html = `<thead><tr><th>${i18n.table_month[currentLang]}</th>`;
+      gus.forEach((gu, i) => { html += `<th><span class="swatch" style="background:${colors[i]}"></span>${guName(gu)}</th>`; });
+      html += `</tr></thead><tbody>`;
+      monthLabels.forEach((m, r) => {
+        html += `<tr><td>${m}</td>` + gus.map(gu => `<td>${localize(topGu[gu][r]).toLocaleString()}</td>`).join('') + `</tr>`;
+      });
+      html += `</tbody>`;
+      table.innerHTML = html;
+      table.querySelector('thead th').insertAdjacentHTML('beforeend', ` <span class="unit">(${unitLabel()})</span>`);
+    }
+
+    /* ===================== Money-dependent views ===================== */
+    function renderMoney() {
+      const yUnit = currentLang === 'ko' ? '단위: 만원' : '単位：万円';
+      trendChart.data.datasets.forEach(ds => { ds.data = ds.krw.map(localize); });
+      compChart.data.datasets.forEach(ds => { ds.data = ds.krw.map(localize); });
+      document.querySelectorAll('.unit-tag').forEach(el => { el.textContent = yUnit; });
+      trendChart.update(); compChart.update();
+
+      document.getElementById('f3Sub').textContent = (currentLang === 'ko' ? '평균 ' : '平均 ') + formatPrice(68407, currentLang);
+      renderFxNote();
+      renderTable();
+
+      document.getElementById('cmpCaption').textContent = currentLang === 'ko'
+        ? '※ 해운대구 예측가가 낮게 나온 것은 시세 하락을 전망한 결과가 아니라, 분석 기간의 거래가 노후 아파트에 몰린 데이터 편향의 영향입니다. 자세한 내용은 아래 분석 노트에 정리했습니다.'
+        : '※ 海雲台区の予測価格が低く出ているのは相場の下落を見込んだものではなく、分析期間中の取引が築年数の古いマンションに偏っていたデータ上の影響です。詳しくは下の分析ノートをご覧ください。';
+
+      if (!document.getElementById('resultContainer').hidden) renderResult(false);
+    }
+
+    /* ===================== Simulator ===================== */
+    const guSelect = document.getElementById('guSelect');
+    function renderSelectBox() {
+      const selectedVal = guSelect.value;
+      guSelect.innerHTML = '';
+      guSummaryData.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.gu; opt.textContent = guName(item.gu);
+        if (item.gu === selectedVal) opt.selected = true;
+        guSelect.appendChild(opt);
+      });
+    }
+
+    let currentEstimatedPrice = 0;
+    let currentBase = null;
+
+    function animateValue(obj, end, duration) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { obj.textContent = formatPrice(end, currentLang); return; }
+      let t0 = null;
+      const step = (ts) => {
+        if (!t0) t0 = ts;
+        const p = Math.min((ts - t0) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        obj.textContent = formatPrice(Math.floor(eased * end), currentLang);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    function renderResult(animate) {
+      const priceEl = document.getElementById('predictedPriceText');
+      if (animate) animateValue(priceEl, currentEstimatedPrice, 700);
+      else priceEl.textContent = formatPrice(currentEstimatedPrice, currentLang);
+      document.getElementById('resultBasis').textContent = currentLang === 'ko'
+        ? `${guName(currentBase.gu)} 6월 예측가 ${formatPrice(currentBase.pred, 'ko')} 기준`
+        : `${guName(currentBase.gu)}の6月予測価格 ${formatPrice(currentBase.pred, 'ja')} を基準に算出`;
+    }
+
+    document.getElementById('predictForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const area = parseFloat(document.getElementById('areaInput').value);
+      const builtYear = parseInt(document.getElementById('ageInput').value);
+      const floor = parseInt(document.getElementById('floorInput').value);
+
+      currentBase = guSummaryData.find(d => d.gu === guSelect.value) || { gu: guSelect.value, pred: 30000 };
+
+      const areaWeight = (area - 84) * 380;
+      const ageWeight = (builtYear - 2018) * 450;
+      const floorWeight = (floor - 15) * 80;
+
+      currentEstimatedPrice = Math.max(8000, Math.round(currentBase.pred + areaWeight + ageWeight + floorWeight));
+      document.getElementById('resultContainer').hidden = false;
+      renderResult(true);
+    });
+
+    /* ===================== Language & theme ===================== */
+    function applyTexts() {
+      document.documentElement.lang = currentLang;
+      document.title = i18n.page_title[currentLang];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[key]) el.textContent = i18n[key][currentLang];
+      });
+      document.getElementById('btnKo').setAttribute('aria-pressed', String(currentLang === 'ko'));
+      document.getElementById('btnJa').setAttribute('aria-pressed', String(currentLang === 'ja'));
+      document.getElementById('themeText').textContent = i18n[isDark() ? 'theme_light' : 'theme_dark'][currentLang];
+
+      renderSelectBox();
+      trendChart.data.datasets.forEach(ds => { ds.label = guName(ds.key); });
+      compChart.data.labels = guSummaryData.map(d => guName(d.gu));
+      compChart.data.datasets[0].label = i18n.ds_actual[currentLang];
+      compChart.data.datasets[1].label = i18n.ds_pred[currentLang];
+    }
+
+    function setLanguage(lang) {
+      if (lang === currentLang) return;
+      currentLang = lang;
+      applyTexts();
+      applyChartTheme();   // 폰트 패밀리 갱신
+      renderMoney();
+    }
+
+    function toggleTheme() {
+      const dark = !isDark();
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      document.getElementById('themeIcon').setAttribute('d', dark
+        ? 'M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66 1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14-1.41-1.41M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'
+        : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z');
+      document.getElementById('themeText').textContent = i18n[dark ? 'theme_light' : 'theme_dark'][currentLang];
+      applyChartTheme();
+      renderTable();
+    }
+
+    /* ===================== Init ===================== */
+    applyTexts();
+    applyChartTheme();
+    renderMoney();
+    if (document.fonts) document.fonts.ready.then(() => { trendChart.update(); compChart.update(); });
+    loadLiveRate();   // 최신 환율 불러오기
+  </script>
+</body>
+</html>
